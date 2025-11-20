@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from renderformer import RenderFormerRenderingPipeline
 from simple_ocio import ToneMapper
-
+from dataset import RenderFormerInferenceDataset 
 
 class TriangleRenderH5Dataset(Dataset):
     def __init__(self, h5_folder_path: str, padding_length: Optional[int] = None):
@@ -99,7 +99,7 @@ def main():
         print(f"Using {args.tone_mapper} tone mapper")
 
     # Create dataset and dataloader
-    dataset = TriangleRenderH5Dataset(args.h5_folder, args.padding_length)
+    dataset = RenderFormerInferenceDataset(args.h5_folder, args.padding_length)
     dataloader = DataLoader(
         dataset, 
         batch_size=args.batch_size,
