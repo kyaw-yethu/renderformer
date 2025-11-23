@@ -3,9 +3,9 @@ import json
 import argparse
 import tempfile
 from dacite import from_dict, Config
-from to_h5 import save_to_h5
-from scene_mesh import generate_scene_mesh
-from scene_config import SceneConfig
+from .to_h5 import save_to_h5
+from .scene_mesh import generate_scene_mesh
+from .scene_config import SceneConfig
 
 
 def main():

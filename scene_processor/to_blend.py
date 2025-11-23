@@ -18,9 +18,8 @@ from dacite import from_dict, Config
 
 BLENDER_BACKEND = os.getenv('BLENDER_BACKEND', 'CUDA')
 
-from scene_config import SceneConfig, CameraConfig
-from scene_mesh import generate_scene_mesh
-
+from .scene_config import SceneConfig, CameraConfig
+from .scene_mesh import generate_scene_mesh
 
 def scene_to_img(
         scene_config: SceneConfig,
