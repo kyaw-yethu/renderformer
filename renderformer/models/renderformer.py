@@ -90,7 +90,8 @@ class RenderFormer(nn.Module, PyTorchModelHubMixin):
             rope_type=self.config.rope_type,
             bias=self.config.bias,
             qk_norm=self.config.view_indep_qk_norm,
-            rope_double_max_freq=self.config.rope_double_max_freq
+            rope_double_max_freq=self.config.rope_double_max_freq,
+            use_performer=False,  
         )
 
         # view transformer
@@ -185,6 +186,8 @@ class RenderFormer(nn.Module, PyTorchModelHubMixin):
         seq, valid_mask_padded, tri_vpos_list = self.construct_seq(tri_vpos_list, texture_patch_list, valid_mask, vns)
         seq = self.transformer(seq, src_key_padding_mask=valid_mask_padded, triangle_pos=tri_vpos_list)
 
+        print("view independent seq mean:", seq.mean().item(), "std:", seq.std().item(), "min:", seq.min().item(), "max:", seq.max().item())
+       
         batch_size, num_views = rays_o.size(0), rays_o.size(1)
         seq = seq.repeat_interleave(num_views, dim=0)
         rays_o = rays_o.view(-1, *rays_o.shape[2:])
@@ -193,7 +196,6 @@ class RenderFormer(nn.Module, PyTorchModelHubMixin):
         valid_mask = valid_mask.repeat_interleave(num_views, dim=0)
         valid_mask_padded = valid_mask_padded.repeat_interleave(num_views, dim=0)
         pos_seq, _ = self.process_tri_vpos_list(tri_vpos_view_tf, valid_mask)
-
         res = self.view_transformer(
             rays_o,
             rays_d,
@@ -202,5 +204,6 @@ class RenderFormer(nn.Module, PyTorchModelHubMixin):
             valid_mask_padded,
             tf32_mode=tf32_view_tf
         )
+        print("view transformer output mean:", res.mean().item(), "std:", res.std().item(), "min:", res.min().item(), "max:", res.max().item())
         res = res.view(batch_size, num_views, *res.size()[1:])  # [batch_size * num_views, ...] -> [batch_size, num_views, ...]
         return res

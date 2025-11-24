@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from performer import FastAttention
+from renderformer.layers.performer import FastAttention
 
 from renderformer.encodings.rope import (
     TriangleRotaryEmbedding,
@@ -146,7 +146,6 @@ class MultiHeadAttention(nn.Module):
         k = k.view(bs, ctx_len, self.num_heads, -1).transpose(1, 2)
         v = v.view(bs, ctx_len, self.num_heads, -1).transpose(1, 2)
 
-        # apply rope
         if rope_cos is not None:
             if rope_ctx_cos is None:
                 q, k = self.apply_rope_cossin(q, k, rope_cos, rope_sin)
@@ -155,18 +154,21 @@ class MultiHeadAttention(nn.Module):
                 k = apply_rotary_emb_one_cossin(k, rope_ctx_cos, rope_ctx_sin)
 
         # === PERFORMER LINEAR ATTENTION ===
+        # IMPORTANT: Performer MUST skip RoPE to maintain statistical properties for FAVOR+ kernel
         if self.use_performer:
-            # Handle masking by zeroing out values
-            if src_key_padding_mask is not None:
-                # Expand mask: (B, ctx_len) -> (B, num_heads, ctx_len, 1)
-                mask = src_key_padding_mask.view(bs, 1, ctx_len, 1)
-                v = v.masked_fill(~mask, 0.0)
-            
+            if rope_cos is not None:
+                # Handle masking by zeroing out values
+                if src_key_padding_mask is not None:
+                    # Expand mask: (B, ctx_len) -> (B, num_heads, ctx_len, 1)
+                    mask = src_key_padding_mask.view(bs, 1, ctx_len, 1)
+                    v = v.masked_fill(~mask, 0.0)
+                
             # FastAttention expects (B, heads, seq_len, head_dim)
             # q, k, v are already in this format from earlier reshape
             attn_output = self.fast_attention(q, k, v)  # (B, heads, src_len, head_dim)
             attn_output = attn_output.transpose(1, 2).contiguous().view(bs, src_len, -1)
-
+            print("[Fast-Self-Attention] shape of attn_output:", attn_output.shape)
+        
         elif ATTN == 'sdpa' or force_sdpa:
             # create attention mask
             if src_key_padding_mask is not None:
@@ -186,6 +188,7 @@ class MultiHeadAttention(nn.Module):
                 value=v,
                 attn_mask=attn_mask,
             ).transpose(1, 2).contiguous().view(bs, src_len, -1)
+            print("[SDPA] shape of attn_output:", attn_output.shape)
         elif ATTN == 'flash_attn':
             # self-attn
             if self.is_self_attn:
@@ -205,6 +208,8 @@ class MultiHeadAttention(nn.Module):
                         v.transpose(1, 2),
                     ], dim=2)
                     attn_output = flash_attn_qkvpacked_func(qkv).contiguous().view(bs, src_len, -1)
+                print("[Flash-Self-Attention] shape of attn_output:", attn_output.shape)
+
             # cross-attn
             else:
                 q_unpad = rearrange(q, "b h s d -> (b s) h d")
@@ -223,6 +228,8 @@ class MultiHeadAttention(nn.Module):
                 attn_output = rearrange(
                     out_unpad, "(b s) h d -> b s h d", b=bs
                 ).contiguous().view(bs, src_len, -1)
+                print("[Flash-Cross-Attention] shape of attn_output:", attn_output.shape)
+
         else:
             raise ValueError("Unsupported attention type. Choose from 'flash_attn' and 'sdpa'.")
 
