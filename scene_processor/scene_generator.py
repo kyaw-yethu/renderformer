@@ -107,6 +107,6 @@ def generate_random_scene(
     
     scene_config.cameras = cameras
     
-    scene_config.scene_name = f"scene_template_{template_id}"
+    scene_config.scene_name = f"scene_template_{template_id}_seed_{seed}"
     
     return scene_config
