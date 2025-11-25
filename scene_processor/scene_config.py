@@ -38,10 +38,10 @@ class MaterialConfig:
 class ObjectConfig:
     mesh_path: str
     """Relative path to the mesh file"""
-    material: MaterialConfig
-    """Material of the object"""
     transform: TransformConfig
     """Transform of the object"""
+    material: MaterialConfig
+    """Material of the object"""
     remesh: bool = False
     """Whether to remesh the object"""
     remesh_target_face_num: int = 2048

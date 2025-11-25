@@ -69,7 +69,7 @@ def generate_training_dataset(
     
     os.makedirs(output_dir, exist_ok=True)
     
-    print("Step 1: Generating scenes...")
+    print("============ Step 1: Generating scenes in .json ==============")
     scene_configs = generate_scene_batch(
         num_scenes=num_scenes,
         output_dir=output_dir,
@@ -100,7 +100,7 @@ def generate_training_dataset(
         if os.path.exists(scene_config_path):
             scene_config_paths.append(scene_config_path)
     
-    print("Step 2: Converting scenes to HDF5...")
+    print("============ Step 2: Converting scenes to HDF5 ==============")
     h5_dir = os.path.join(output_dir, "h5")
     os.makedirs(h5_dir, exist_ok=True)
     
@@ -127,7 +127,7 @@ def generate_training_dataset(
         finally:
             sys.argv = old_argv
     
-    print("Step 3: Rendering ground truth images...")
+    print("============ Step 3: Rendering ground truth images ============")
     render_results = render_scene_batch(
         scene_configs=scene_configs,
         scene_config_paths=scene_config_paths,
@@ -141,7 +141,7 @@ def generate_training_dataset(
         max_concurrent=1
     )
     
-    print("Step 4: Generating metadata...")
+    print("============ Step 4: Generating metadata ============")
     metadata = {
         'num_scenes': len(scene_configs),
         'num_views_per_scene': num_views_per_scene,

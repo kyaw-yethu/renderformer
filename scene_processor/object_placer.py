@@ -160,8 +160,8 @@ def place_object_in_scene(
             mesh_path=mesh_path,
             transform=transform,
             material=material,
-            remesh=True,
-            remesh_target_face_num=512
+            remesh=False,
+            remesh_target_face_num=1024
         )
         
         return (obj_config, position)

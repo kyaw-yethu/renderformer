@@ -29,6 +29,13 @@ def generate_template_scene(
     for i, bg_obj in enumerate(template.background_objects):
         obj_key = f"background_{i}"
         
+        transform = TransformConfig(
+            translation=bg_obj.translation,
+            rotation=bg_obj.rotation,
+            scale=bg_obj.scale,
+            normalize=bg_obj.normalize
+        )
+
         material = MaterialConfig(
             diffuse=[0.4, 0.4, 0.4],
             specular=[0.0, 0.0, 0.0],
@@ -40,19 +47,12 @@ def generate_template_scene(
             random_diffuse_type="per-shading-group"
         )
         
-        transform = TransformConfig(
-            translation=bg_obj.translation,
-            rotation=bg_obj.rotation,
-            scale=bg_obj.scale,
-            normalize=bg_obj.normalize
-        )
-        
         mesh_path = f"{examples_dir}/{bg_obj.mesh_path}"
         
         objects[obj_key] = ObjectConfig(
             mesh_path=mesh_path,
-            material=material,
             transform=transform,
+            material=material,
             remesh=False,
             remesh_target_face_num=2048
         )
