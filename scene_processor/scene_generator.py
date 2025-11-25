@@ -95,6 +95,7 @@ def generate_random_scene(
     camera_seed = seed + 4000 if seed is not None else None
     cameras = sample_cameras(
         num_views=num_views,
+        template_id=template_id,
         scene_center=scene_center,
         distance_range=camera_distance_range,
         fov_range=camera_fov_range,

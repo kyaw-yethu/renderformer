@@ -3,10 +3,31 @@ import numpy as np
 from typing import List, Optional, Tuple
 from .scene_config import CameraConfig
 
+def get_horizontal_range_for_template(template_id: int) -> Tuple[float, float]:
+    """Get horizontal range based on template_id to avoid wall occlusion.
+    """
+    if template_id == 0:
+        # No walls - full 360° freedom
+        return (0, 2 * np.pi)
+    elif template_id == 1:
+        # Back wall only -> view from 3rd + 4th quadrants (180°)
+        return (np.pi, 2 * np.pi)
+    elif template_id == 2:
+        # Back + right wall -> view from 3rd quadrant only (90°)
+        return (np.pi, np.pi * (3 / 2))
+    elif template_id == 3:
+        # Back + left + right wall -> view from half of 3rd and 4th quadrants (60°)
+        return (-np.pi / 3, - np.pi * (2 /3))
+    else:
+        # Default to front hemisphere
+        return (-np.pi/4, np.pi/4)
+
 def sample_camera_position(
     scene_center: Tuple[float, float, float] = (0.0, 0.0, 0.0),
     distance_range: Tuple[float, float] = (1.5, 2.0),
     scene_bounds: Tuple[float, float] = (-0.5, 0.5),
+    elevation_range: Tuple[float, float] = (0.0, 1.5),
+    template_id: int = 0,
     seed: Optional[int] = None
 ) -> Tuple[float, float, float]:
     """Sample camera position.
@@ -23,15 +44,15 @@ def sample_camera_position(
     
     distance = np.random.uniform(distance_range[0], distance_range[1])
     
-    # theta: azimuth (0 to 2*pi)
-    theta = np.random.uniform(0, 2 * np.pi)
+    # Get horizontal range based on template_id
+    horizontal_range = get_horizontal_range_for_template(template_id)
 
-    phi = np.random.uniform(0, np.pi / 2)
-    
-    x = distance * np.sin(phi) * np.cos(theta)
-    y = distance * np.sin(phi) * np.sin(theta)
-    z = distance * np.cos(phi)
-    
+    theta = np.random.uniform(horizontal_range[0], horizontal_range[1])
+
+    x = distance * np.cos(theta)
+    y = distance * np.sin(theta)
+    z = np.random.uniform(elevation_range[0], elevation_range[1])
+
     position = np.array(scene_center) + np.array([x, y, z])
     
     return tuple(position)
@@ -100,6 +121,7 @@ def sample_camera_up(seed: Optional[int] = None) -> Tuple[float, float, float]:
 
 def sample_cameras(
     num_views: int,
+    template_id: int,
     scene_center: Tuple[float, float, float] = (0.0, 0.0, 0.0),
     distance_range: Tuple[float, float] = (1.5, 2.0),
     fov_range: Tuple[float, float] = (30.0, 60.0),
@@ -132,6 +154,7 @@ def sample_cameras(
             scene_center=scene_center,
             distance_range=distance_range,
             scene_bounds=scene_bounds,
+            template_id=template_id,
             seed=cam_seed
         )
         

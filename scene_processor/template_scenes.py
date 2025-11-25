@@ -33,32 +33,11 @@ class TemplateScene:
 TEMPLATE_SCENES: Dict[int, TemplateScene] = {
     0: TemplateScene(
         template_id=0,
-        name="Cornell Box",
-        description="기본 Cornell Box (바닥 + 3개 벽)",
+        name="Open Space",
+        description="No walls",
         background_objects=[
             TemplateObject(
                 mesh_path="templates/backgrounds/plane.obj",
-                translation=[0.0, 0.0, 0.0],
-                rotation=[0.0, 0.0, 0.0],
-                scale=[0.5, 0.5, 0.5],
-                normalize=False
-            ),
-            TemplateObject(
-                mesh_path="templates/backgrounds/wall0.obj",
-                translation=[0.0, 0.0, 0.0],
-                rotation=[0.0, 0.0, 0.0],
-                scale=[0.5, 0.5, 0.5],
-                normalize=False
-            ),
-            TemplateObject(
-                mesh_path="templates/backgrounds/wall1.obj",
-                translation=[0.0, 0.0, 0.0],
-                rotation=[0.0, 0.0, 0.0],
-                scale=[0.5, 0.5, 0.5],
-                normalize=False
-            ),
-            TemplateObject(
-                mesh_path="templates/backgrounds/wall2.obj",
                 translation=[0.0, 0.0, 0.0],
                 rotation=[0.0, 0.0, 0.0],
                 scale=[0.5, 0.5, 0.5],
@@ -68,8 +47,29 @@ TEMPLATE_SCENES: Dict[int, TemplateScene] = {
     ),
     1: TemplateScene(
         template_id=1,
-        name="Box Room",
-        description="Box Room (4개 벽 + 바닥)",
+        name="Back Wall",
+        description="Back Wall",
+        background_objects=[
+            TemplateObject(
+                mesh_path="templates/backgrounds/plane.obj",
+                translation=[0.0, 0.0, 0.0],
+                rotation=[0.0, 0.0, 0.0],
+                scale=[0.5, 0.5, 0.5],
+                normalize=False
+            ),
+            TemplateObject(
+                mesh_path="templates/backgrounds/wall0.obj",
+                translation=[0.0, 0.0, 0.0],
+                rotation=[0.0, 0.0, 0.0],
+                scale=[0.5, 0.5, 0.5],
+                normalize=False
+            ),
+        ]
+    ),
+    2: TemplateScene(
+        template_id=2,
+        name="Two Walls",
+        description="Two Walls",
         background_objects=[
             TemplateObject(
                 mesh_path="templates/backgrounds/plane.obj",
@@ -92,19 +92,12 @@ TEMPLATE_SCENES: Dict[int, TemplateScene] = {
                 scale=[0.5, 0.5, 0.5],
                 normalize=False
             ),
-            TemplateObject(
-                mesh_path="templates/backgrounds/wall2.obj",
-                translation=[0.0, 0.0, 0.0],
-                rotation=[0.0, 0.0, 0.0],
-                scale=[0.5, 0.5, 0.5],
-                normalize=False
-            ),
         ]
     ),
-    2: TemplateScene(
-        template_id=2,
-        name="Stand",
-        description="Stand (바닥 + 뒤쪽 벽)",
+    3: TemplateScene(
+        template_id=3,
+        name="Three Walls",
+        description="Three Walls",
         background_objects=[
             TemplateObject(
                 mesh_path="templates/backgrounds/plane.obj",
@@ -115,20 +108,6 @@ TEMPLATE_SCENES: Dict[int, TemplateScene] = {
             ),
             TemplateObject(
                 mesh_path="templates/backgrounds/wall0.obj",
-                translation=[0.0, 0.0, 0.0],
-                rotation=[0.0, 0.0, 0.0],
-                scale=[0.5, 0.5, 0.5],
-                normalize=False
-            ),
-        ]
-    ),
-    3: TemplateScene(
-        template_id=3,
-        name="Open Room",
-        description="Open Room (바닥 + 2개 벽)",
-        background_objects=[
-            TemplateObject(
-                mesh_path="templates/backgrounds/plane.obj",
                 translation=[0.0, 0.0, 0.0],
                 rotation=[0.0, 0.0, 0.0],
                 scale=[0.5, 0.5, 0.5],

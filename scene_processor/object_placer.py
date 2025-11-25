@@ -47,35 +47,6 @@ def sample_object_rotation(seed: Optional[int] = None) -> Tuple[float, float, fl
     
     return (rx, ry, rz)
 
-def sample_object_scale(
-    min_scale: float = 0.3,
-    max_scale: float = 0.8,
-    uniform: bool = True,
-    seed: Optional[int] = None
-) -> Tuple[float, float, float]:
-    """Sample random scale.
-    
-    Args:
-        min_scale:
-        max_scale:
-        uniform:
-        seed:
-        
-    Returns:
-    """
-    if seed is not None:
-        random.seed(seed)
-        np.random.seed(seed)
-    
-    if uniform:
-        scale = np.random.uniform(min_scale, max_scale)
-        return (scale, scale, scale)
-    else:
-        sx = np.random.uniform(min_scale, max_scale)
-        sy = np.random.uniform(min_scale, max_scale)
-        sz = np.random.uniform(min_scale, max_scale)
-        return (sx, sy, sz)
-
 def check_collision(
     mesh1: trimesh.Trimesh,
     pos1: Tuple[float, float, float],
@@ -154,8 +125,9 @@ def place_object_in_scene(
         
         rotation = sample_object_rotation(seed=None)
         
-        scale = sample_object_scale(min_scale=0.3, max_scale=0.8, uniform=True, seed=None)
-        
+        scaled_coord = np.random.uniform(0.7, 1.2)
+        scale = (scaled_coord, scaled_coord, scaled_coord)
+
         if existing_objects is not None:
             collision = False
             for existing_mesh, existing_pos in existing_objects:
@@ -170,7 +142,7 @@ def place_object_in_scene(
             translation=list(position),
             rotation=list(rotation),
             scale=list(scale),
-            normalize=False
+            normalize=True
         )
         
         material = MaterialConfig(
@@ -186,8 +158,8 @@ def place_object_in_scene(
         
         obj_config = ObjectConfig(
             mesh_path=mesh_path,
-            material=material,
             transform=transform,
+            material=material,
             remesh=True,
             remesh_target_face_num=512
         )

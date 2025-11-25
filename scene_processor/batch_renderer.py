@@ -6,6 +6,7 @@ from tqdm import tqdm
 from .scene_config import SceneConfig
 from .scene_mesh import generate_scene_mesh
 from .render_worker import wait_for_gpu_memory, cleanup_blender_temp_files
+from .to_blend import scene_to_img
 
 def render_single_scene(
     scene_config: SceneConfig,
@@ -48,7 +49,6 @@ def render_single_scene(
         results = [(None, None) for _ in range(num_cameras)]
     else:
         try:
-            from .to_blend import scene_to_img
             results = scene_to_img(
                 scene_config=scene_config,
                 mesh_path=mesh_path,
