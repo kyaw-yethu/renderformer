@@ -39,6 +39,7 @@ def generate_scene_batch(
     light_scale_range: tuple = (2.0, 2.5),
     light_emission_range: tuple = (2500.0, 5000.0),
     examples_dir: str = "examples",
+    max_triangles: int = 2048,
     base_seed: Optional[int] = None,
     num_workers: Optional[int] = None,
     save_json: bool = True
@@ -120,6 +121,7 @@ def generate_scene_batch(
             'light_scale_range': light_scale_range,
             'light_emission_range': light_emission_range,
             'examples_dir': examples_dir,
+            'max_triangles': max_triangles,
             'seed': seed
         }
         scene_args.append(args)

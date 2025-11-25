@@ -23,6 +23,7 @@ def generate_random_scene(
     light_scale_range: tuple = (2.0, 2.5),
     light_emission_range: tuple = (2500.0, 5000.0),
     examples_dir: str = "examples",
+    max_triangles: int = 2048,
     seed: Optional[int] = None
 ) -> SceneConfig:
     """Generate random scene.
@@ -63,6 +64,7 @@ def generate_random_scene(
             num_objects=num_objects,
             scene_bounds=scene_bounds,
             ground_level=ground_level,
+            max_triangles=max_triangles,
             seed=obj_seed
         )
         

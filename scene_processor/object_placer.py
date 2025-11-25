@@ -91,6 +91,7 @@ def place_object_in_scene(
     ground_level: float = -0.5,
     existing_objects: Optional[List[Tuple[trimesh.Trimesh, Tuple[float, float, float]]]] = None,
     max_attempts: int = 50,
+    max_triangles: int = 2048,
     seed: Optional[int] = None
 ) -> Optional[Tuple[ObjectConfig, Tuple[float, float, float]]]:
     """Place object in scene.
@@ -161,7 +162,8 @@ def place_object_in_scene(
             transform=transform,
             material=material,
             remesh=False,
-            remesh_target_face_num=1024
+            remesh_target_face_num=1024,
+            max_triangles=max_triangles
         )
         
         return (obj_config, position)
@@ -173,6 +175,7 @@ def sample_objects_from_objaverse(
     num_objects: int,
     scene_bounds: Tuple[float, float] = (-0.5, 0.5),
     ground_level: float = -0.5,
+    max_triangles: int = 2048,
     seed: Optional[int] = None
 ) -> List[ObjectConfig]:
     """Sample objects from Objaverse and place in scene.
@@ -215,6 +218,7 @@ def sample_objects_from_objaverse(
             ground_level=ground_level,
             existing_objects=existing_objects,
             max_attempts=50,
+            max_triangles=max_triangles,
             seed=obj_seed
         )
         

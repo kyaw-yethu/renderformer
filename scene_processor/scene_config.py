@@ -46,6 +46,7 @@ class ObjectConfig:
     """Whether to remesh the object"""
     remesh_target_face_num: int = 2048
     """Target face number of the remeshed object"""
+    max_triangles: int = 2048
 
 
 @dataclass

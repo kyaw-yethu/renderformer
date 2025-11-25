@@ -28,6 +28,7 @@ def generate_training_dataset(
     light_scale_range: tuple = (2.0, 2.5),
     light_emission_range: tuple = (2500.0, 5000.0),
     examples_dir: str = "examples",
+    max_triangles: int = 2048,
     resolution: int = 256,
     spp: int = 512,
     base_seed: Optional[int] = None,
@@ -87,6 +88,7 @@ def generate_training_dataset(
         light_scale_range=light_scale_range,
         light_emission_range=light_emission_range,
         examples_dir=examples_dir,
+        max_triangles=max_triangles,
         base_seed=base_seed,
         num_workers=num_workers,
         save_json=True

@@ -186,6 +186,7 @@ def main():
         light_scale_range=config.light_scale_range,
         light_emission_range=config.light_emission_range,
         examples_dir=config.examples_dir,
+        max_triangles=config.max_triangles,
         resolution=config.resolution,
         spp=config.spp,
         base_seed=config.base_seed,
