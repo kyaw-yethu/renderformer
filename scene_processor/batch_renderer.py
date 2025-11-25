@@ -74,8 +74,8 @@ def render_single_scene(
             exr_path = None
             png_path = None
         else:
-            exr_path = f"{output_image_base}_{i}.exr"
-            png_path = f"{output_image_base}_{i}.png" if save_img else None
+            exr_path = f"{output_image_base}_view_{i}.exr"
+            png_path = f"{output_image_base}_view_{i}.png" if save_img else None
         output_paths.append((exr_path, png_path))
     
     return output_paths
