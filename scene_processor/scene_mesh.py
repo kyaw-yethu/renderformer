@@ -5,9 +5,23 @@ import trimesh
 import trimesh.visual
 from typing import Dict
 import random
-from scene_config import SceneConfig
-from remesh import remesh
+from pathlib import Path
+from .scene_config import SceneConfig
+from .remesh import remesh
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+def _resolve_mesh_path(mesh_path: str, scene_config_dir: str) -> str:
+    if os.path.isabs(mesh_path):
+        return mesh_path
+    candidates = [
+        os.path.join(scene_config_dir, mesh_path),
+        os.path.join(PROJECT_ROOT, mesh_path),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return mesh_path
 
 def normalize_to_unit_sphere(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     """Normalize mesh to fit in a unit sphere centered at origin"""
@@ -17,24 +31,36 @@ def normalize_to_unit_sphere(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
 
     return mesh
 
-
 def generate_scene_mesh(scene_config: SceneConfig, output_path: str, scene_config_dir: str) -> None:
     """Generate combined mesh from scene configuration using trimesh.Scene"""
     split_mesh_folder_path = os.path.dirname(output_path) + '/split'
     os.makedirs(split_mesh_folder_path, exist_ok=True)
 
     for obj_key, obj_config in scene_config.objects.items():
-        mesh: trimesh.Trimesh = trimesh.load(scene_config_dir + '/' + obj_config.mesh_path, process=False)  # type: ignore
+        mesh_path = _resolve_mesh_path(obj_config.mesh_path, scene_config_dir)
+        mesh: trimesh.Trimesh = trimesh.load(mesh_path, process=False)  # type: ignore
+        triangle_num = mesh.faces.shape[0]
         if obj_config.transform.normalize:
             mesh = normalize_to_unit_sphere(mesh)
+        
+        # Either always remesh to a specified target face num
         if obj_config.remesh:
             new_v, new_f = remesh(mesh.vertices, mesh.faces, obj_config.remesh_target_face_num)
-            print(f'remesh {obj_key} from {mesh.faces.shape[0]} to {new_f.shape[0]}')
+            print(f'remesh {obj_key} from {triangle_num} to {new_f.shape[0]}')
             mesh = trimesh.Trimesh(
                 vertices=new_v,
                 faces=new_f,
                 process=False
             )
+        # or conditionally remesh if exceeding max triangles
+        elif triangle_num > obj_config.max_triangles:
+            new_v, new_f = remesh(mesh.vertices, mesh.faces, obj_config.max_triangles)
+            print(f'Triangle count exceeding {obj_config.max_triangles}. Remeshing {obj_key} from {triangle_num} to {new_f.shape[0]}')
+            mesh = trimesh.Trimesh(
+                vertices=new_v,
+                faces=new_f,
+                process=False
+            )       
 
         # Apply transformations
         transform = obj_config.transform

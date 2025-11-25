@@ -18,9 +18,8 @@ from dacite import from_dict, Config
 
 BLENDER_BACKEND = os.getenv('BLENDER_BACKEND', 'CUDA')
 
-from scene_config import SceneConfig, CameraConfig
-from scene_mesh import generate_scene_mesh
-
+from .scene_config import SceneConfig, CameraConfig
+from .scene_mesh import generate_scene_mesh
 
 def scene_to_img(
         scene_config: SceneConfig,
@@ -107,8 +106,8 @@ def scene_to_img(
     setup_blender_scene(scene_config, mesh_path)
 
     results = []
-    for i, camera_config in tqdm(list(enumerate(scene_config.cameras))):
-        img, c2w = render_scene(camera_config, f"{output_image_path}_{i}.png", f"{output_image_path}_{i}.obj")
+    for i, camera_config in list(enumerate(scene_config.cameras)):
+        img, c2w = render_scene(camera_config, f"{output_image_path}_view_{i}.png", f"{output_image_path}_{i}.obj")
         results.append((img, c2w))
 
     # dump if needed
