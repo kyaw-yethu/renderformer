@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from renderformer.layers.performer import FastAttention
+
 from renderformer.encodings.rope import (
     TriangleRotaryEmbedding,
     freqs_to_cos_sin,
@@ -83,7 +85,7 @@ class FeedForwardGeLU(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, query_dim, num_heads, kv_dim=None, bias=True, qk_norm=False, norm_type='layer_norm'):
+    def __init__(self, query_dim, num_heads, kv_dim=None, bias=True, qk_norm=False, norm_type='layer_norm', use_performer=False, nb_features=None):
         super().__init__()
         self.apply_rope_cossin = apply_rotary_emb_cossin
 
@@ -112,6 +114,18 @@ class MultiHeadAttention(nn.Module):
             self.q_norm = nn.Identity()
             self.k_norm = nn.Identity()
 
+        self.use_performer = use_performer
+        if use_performer:
+            head_dim = query_dim // num_heads
+            self.fast_attention = FastAttention(
+                dim_heads=head_dim,
+                nb_features=nb_features,  # None = auto (d * log(d))
+                causal=False,
+                generalized_attention=False,
+                kernel_fn=nn.ReLU(),
+                no_projection=False
+            )
+
     def forward(self, q, k, v, src_key_padding_mask=None, rope_cos=None, rope_sin=None, rope_ctx_cos=None, rope_ctx_sin=None, force_sdpa=False):
         # src_key_padding_mask: (B, N), key padding mask, things you want to attend to is True
         bs, src_len = q.shape[0], q.shape[1]
@@ -132,7 +146,6 @@ class MultiHeadAttention(nn.Module):
         k = k.view(bs, ctx_len, self.num_heads, -1).transpose(1, 2)
         v = v.view(bs, ctx_len, self.num_heads, -1).transpose(1, 2)
 
-        # apply rope
         if rope_cos is not None:
             if rope_ctx_cos is None:
                 q, k = self.apply_rope_cossin(q, k, rope_cos, rope_sin)
@@ -140,7 +153,23 @@ class MultiHeadAttention(nn.Module):
                 q = apply_rotary_emb_one_cossin(q, rope_cos, rope_sin)
                 k = apply_rotary_emb_one_cossin(k, rope_ctx_cos, rope_ctx_sin)
 
-        if ATTN == 'sdpa' or force_sdpa:
+        # === PERFORMER LINEAR ATTENTION ===
+        # IMPORTANT: Performer MUST skip RoPE to maintain statistical properties for FAVOR+ kernel
+        if self.use_performer:
+            if rope_cos is not None:
+                # Handle masking by zeroing out values
+                if src_key_padding_mask is not None:
+                    # Expand mask: (B, ctx_len) -> (B, num_heads, ctx_len, 1)
+                    mask = src_key_padding_mask.view(bs, 1, ctx_len, 1)
+                    v = v.masked_fill(~mask, 0.0)
+                
+            # FastAttention expects (B, heads, seq_len, head_dim)
+            # q, k, v are already in this format from earlier reshape
+            attn_output = self.fast_attention(q, k, v)  # (B, heads, src_len, head_dim)
+            attn_output = attn_output.transpose(1, 2).contiguous().view(bs, src_len, -1)
+            print("[Fast-Self-Attention] shape of attn_output:", attn_output.shape)
+        
+        elif ATTN == 'sdpa' or force_sdpa:
             # create attention mask
             if src_key_padding_mask is not None:
                 assert src_key_padding_mask.shape == (bs, ctx_len), \
@@ -159,6 +188,7 @@ class MultiHeadAttention(nn.Module):
                 value=v,
                 attn_mask=attn_mask,
             ).transpose(1, 2).contiguous().view(bs, src_len, -1)
+            print("[SDPA] shape of attn_output:", attn_output.shape)
         elif ATTN == 'flash_attn':
             # self-attn
             if self.is_self_attn:
@@ -178,6 +208,8 @@ class MultiHeadAttention(nn.Module):
                         v.transpose(1, 2),
                     ], dim=2)
                     attn_output = flash_attn_qkvpacked_func(qkv).contiguous().view(bs, src_len, -1)
+                print("[Flash-Self-Attention] shape of attn_output:", attn_output.shape)
+
             # cross-attn
             else:
                 q_unpad = rearrange(q, "b h s d -> (b s) h d")
@@ -196,6 +228,8 @@ class MultiHeadAttention(nn.Module):
                 attn_output = rearrange(
                     out_unpad, "(b s) h d -> b s h d", b=bs
                 ).contiguous().view(bs, src_len, -1)
+                print("[Flash-Cross-Attention] shape of attn_output:", attn_output.shape)
+
         else:
             raise ValueError("Unsupported attention type. Choose from 'flash_attn' and 'sdpa'.")
 
@@ -389,6 +423,8 @@ class AttentionLayer(nn.Module):
         use_swin_attn: bool = False,
         window_size: int = 8,
         shift_size: int = 0,
+        use_performer: bool = False,
+        nb_features: int = None
     ):
         """
         Attention layer with feed forward and pre-norm.
@@ -419,7 +455,9 @@ class AttentionLayer(nn.Module):
             kv_dim=kv_dim,
             bias=bias,
             qk_norm=qk_norm,
-            norm_type=norm_type
+            norm_type=norm_type,
+            use_performer=use_performer,
+            nb_features=nb_features,
         )
         self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 
@@ -544,6 +582,8 @@ class TransformerEncoder(nn.Module):
         rope_type: Literal['triangle', 'triangle_learned', 'triangle_mixed'] = 'triangle',
         rope_double_max_freq: bool = False,
         qk_norm: bool = False,
+        use_performer: bool = False,
+        nb_features: int = None,
     ):
         super().__init__()
         assert norm_first, "Only support norm_first=True"
@@ -561,6 +601,8 @@ class TransformerEncoder(nn.Module):
                 activation=activation,
                 norm_type=norm_type,
                 qk_norm=qk_norm,
+                use_performer=use_performer,
+                nb_features=nb_features,
             ) for _ in range(num_layers)
         ])
         self.rope_dim = rope_dim
@@ -653,7 +695,8 @@ class TransformerDecoder(nn.Module):
                 add_self_attn=include_self_attn,
                 use_swin_attn=use_swin_attn,
                 window_size=window_size,
-                shift_size=0 if i % 2 == 0 else shift_size  # w-attn and swin-attn are on alternate layers
+                shift_size=0 if i % 2 == 0 else shift_size,  # w-attn and swin-attn are on alternate layers
+                use_performer=False,
             ) for i in range(num_layers)
         ])
 
