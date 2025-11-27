@@ -66,7 +66,7 @@ def main():
                         help="Precision for inference")
     parser.add_argument("--resolution", type=int, default=512, help="Resolution for inference")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size for inference")
-    parser.add_argument("--padding_length", type=int, default=None, help="Padding length for inference")
+    parser.add_argument("--padding_length", type=int, default=8192, help="Padding length for inference")
     parser.add_argument("--num_workers", type=int, default=0, help="Number of workers for data loading")
     parser.add_argument("--output_dir", type=str, default=None, 
                         help="Output directory for rendered images (default: same as input folder)")
@@ -129,6 +129,14 @@ def main():
         c2w = batch['c2w'].to(device)
         fov = batch['fov'].unsqueeze(-1).to(device)
         file_paths = batch['file_path']
+
+        # print("Print shapes of loaded data:")
+        # print("Triangles shape:", triangles.shape)
+        # print("Texture shape:", texture.shape)
+        # print("Mask shape:", mask.shape)
+        # print("Vertex normals shape:", vn.shape)
+        # print("Camera-to-world shape:", c2w.shape)
+        # print("Field of view shape:", fov.shape)
 
         # Perform inference
         rendered_imgs = pipeline(

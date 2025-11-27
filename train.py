@@ -2,11 +2,13 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
 import argparse
 import numpy as np
-from tqdm import tqdm
 import lpips
+
+from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader
 
 from renderformer import RenderFormerRenderingPipeline
 from renderformer.models.config import RenderFormerConfig
@@ -91,7 +93,7 @@ def random_rotation_augmentation(triangles, vn, c2w):
 
 
 class RenderFormerLoss(nn.Module):
-    def __init__(self, lpips_weight=0.05, device='cuda'):
+    def __init__(self, lpips_weight=0.05, tone_mapper='agx', device='cuda'):
         """
         Combined loss function for RenderFormer training.
         
@@ -197,10 +199,30 @@ def train_epoch(pipeline, dataloader, optimizer, scheduler, criterion, device, r
         c2w = batch['c2w'].to(device)
         fov = batch['fov'].unsqueeze(-1).to(device)
         gt_images = batch['gt_images'].to(device)
+        scene_name = batch['scene_name']
+
+        # print("Triangles shape:", triangles.shape)
+        # print("Texture shape:", texture.shape)
+        # print("Mask shape:", mask.shape)
+        # print("Vertex normals shape:", vn.shape)
+        # print("Camera-to-world shape:", c2w.shape)
+        # print("FOV shape:", fov.shape)
+        # print("GT images shape:", gt_images.shape)
         
+        # visualize all GT images in the first batch for debugging
+        # import matplotlib.pyplot as plt
+
+        # for i in range(gt_images.shape[0]):
+        #     for j in range(gt_images.shape[1]):
+        #         img = gt_images[i, j].cpu().numpy()
+        #         img = np.clip(img, 0, 1)
+        #         plt.imshow(img)
+        #         plt.savefig(f"debug/gt_image_{scene_name[i]}_view_{j}.png")
+        #         plt.close()  # Close figure to free memory
+
         # Apply random rotation augmentation
-        if use_rotation_aug:
-            triangles, vn, c2w = random_rotation_augmentation(triangles, vn, c2w)
+        # if use_rotation_aug:
+        #     triangles, vn, c2w = random_rotation_augmentation(triangles, vn, c2w)
         
         optimizer.zero_grad()
         
@@ -213,10 +235,23 @@ def train_epoch(pipeline, dataloader, optimizer, scheduler, criterion, device, r
             fov=fov,
             resolution=resolution,
             torch_dtype=torch.float16 if precision == 'fp16' else torch.bfloat16 if precision == 'bf16' else torch.float32,
+            enable_grad=True
         )
-        
-        loss, l1_loss, lpips_loss = criterion(pred_images, gt_images)
-        
+
+        # print("Pred images shape:", pred_images.shape)
+
+        # visualize all predicted images in the first batch for debugging
+        # for i in range(pred_images.shape[0]):
+        #     for j in range(pred_images.shape[1]):
+        #         img = pred_images[i, j].detach().cpu().float().numpy()
+        #         img = np.clip(img, 0, 1)  # Ensure values are in valid range
+        #         plt.imshow(img)
+        #         plt.savefig(f"debug/pred_image_debug_{scene_name[i]}_view_{j}.png")
+        #         plt.close()  # Close figure to free memory
+
+        # pred_images: [B, N_views, H, W, 3], gt_images: [B, H, W, 3]
+        loss, l1_loss, lpips_loss = criterion(pred_images.squeeze(1), gt_images)
+
         loss.backward()
         optimizer.step()
         
@@ -256,6 +291,7 @@ def validate(pipeline, dataloader, criterion, device, resolution, precision):
         c2w = batch['c2w'].to(device)
         fov = batch['fov'].unsqueeze(-1).to(device)
         gt_images = batch['gt_images'].to(device)
+        scene_name = batch['scene_name']
         
         pred_images = pipeline(
             triangles=triangles,
@@ -266,6 +302,7 @@ def validate(pipeline, dataloader, criterion, device, resolution, precision):
             fov=fov,
             resolution=resolution,
             torch_dtype=torch.float16 if precision == 'fp16' else torch.bfloat16 if precision == 'bf16' else torch.float32,
+            enable_grad=False
         )
         
         loss, l1_loss, lpips_loss = criterion(pred_images, gt_images)
@@ -286,32 +323,119 @@ def validate(pipeline, dataloader, criterion, device, resolution, precision):
     
     return avg_loss, avg_l1, avg_lpips
 
+def print_debug_info(pipeline, device, args):
+    """Print detailed information about the RenderFormer pipeline"""
+    print("="*80)
+    print("PIPELINE INFORMATION")
+    print("="*80)
+    
+    # Basic info
+    print(f"\nPipeline type: {type(pipeline).__name__}")
+    print(f"Device: {device}")
+    
+    # Model info
+    model = pipeline.model
+    print(f"\nModel type: {type(model).__name__}")
+    print(f"Model device: {next(model.parameters()).device}")
+    print(f"Model dtype: {next(model.parameters()).dtype}")
+    
+    # Model configuration
+    if hasattr(model, 'config'):
+        config = model.config
+        print(f"\nModel Configuration:")
+        for key, value in vars(config).items():
+            if not key.startswith('_'):
+                print(f"  {key}: {value}")
+    
+    # Count parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    frozen_params = total_params - trainable_params
+    
+    print(f"\nParameter Count:")
+    print(f"  Total parameters: {total_params:,}")
+    print(f"  Trainable parameters: {trainable_params:,}")
+    print(f"  Frozen parameters: {frozen_params:,}")
+    print(f"  Model size: {total_params * 4 / (1024**2):.2f} MB (fp32)")
+    
+    # Memory usage
+    if device.type == 'cuda':
+        allocated = torch.cuda.memory_allocated(device) / (1024**3)
+        reserved = torch.cuda.memory_reserved(device) / (1024**3)
+        print(f"\nGPU Memory:")
+        print(f"  Allocated: {allocated:.2f} GB")
+        print(f"  Reserved: {reserved:.2f} GB")
+    
+    # Layer breakdown
+    print(f"\nModel Architecture:")
+    total_layers = 0
+    for name, module in model.named_modules():
+        if len(list(module.children())) == 0:  # Leaf modules only
+            total_layers += 1
+    print(f"  Total layers: {total_layers}")
+    
+    # Print first few layers
+    print(f"\nFirst 10 layers:")
+    for i, (name, module) in enumerate(model.named_modules()):
+        if len(list(module.children())) == 0 and i < 10:
+            params = sum(p.numel() for p in module.parameters())
+            print(f"  {name}: {type(module).__name__} ({params:,} params)")
+    
+    # Module types summary
+    print(f"\nModule Type Summary:")
+    module_types = {}
+    for module in model.modules():
+        module_type = type(module).__name__
+        if module_type not in module_types:
+            module_types[module_type] = 0
+        module_types[module_type] += 1
+    
+    for module_type, count in sorted(module_types.items(), key=lambda x: x[1], reverse=True)[:10]:
+        print(f"  {module_type}: {count}")
+    
+    print("="*80)
+
+    print(f"\nTraining Configuration:")
+    print(f"  Batch size: {args.batch_size}")
+    print(f"  Warmup steps: {args.warmup_steps}")
+    print(f"  Peak learning rate: {args.peak_lr}")
+    print(f"  Rotation augmentation: {'enabled' if args.use_rotation_aug else 'disabled'}")
+    print(f"  Precision: {args.precision}")
+
 def main():
+    # avaialable pretrained model IDs:
+    # microsoft/renderformer-v1.1-swin-large
+    # microsoft/renderformer-v1-base
     parser = argparse.ArgumentParser(description="Train RenderFormer model")
-    parser.add_argument("--data_dir", type=str, required=True, help="Path to dataset directory")
-    parser.add_argument("--output_dir", type=str, default="./checkpoints", help="Output directory for checkpoints")
+    parser.add_argument("--metadata_path", type=str, required=True, help="Path to Metadata JSON file")
+    parser.add_argument("--output_dir", type=str, default="checkpoints", help="Output directory for checkpoints")
     parser.add_argument("--model_id", type=str, default=None, help="Pretrained model ID (optional)")
-    parser.add_argument("--precision", type=str, choices=['bf16', 'fp16', 'fp32'], default='bf16', help="Precision for inference")
+    parser.add_argument("--precision", type=str, choices=['bf16', 'fp16', 'fp32'], default='fp16', help="Precision for inference")
     parser.add_argument("--resolution", type=int, default=512, help="Training resolution")
-    parser.add_argument("--batch_size", type=int, default=4, help="Batch size per GPU")
-    parser.add_argument("--padding_length", type=int, default=None, help="Padding length for triangles (optional)")
+    parser.add_argument("--batch_size", type=int, default=1, help="Batch size per GPU")
+    parser.add_argument("--padding_length", type=int, default=4096, help="Padding length for triangles (optional)")
     parser.add_argument("--num_workers", type=int, default=4, help="Number of data loading workers")
     parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
-    parser.add_argument("--lr", type=float, default=1e-4, help="Peak learning rate")
+    parser.add_argument("--peak_lr", type=float, default=1e-4, help="Peak learning rate")
     parser.add_argument("--warmup_steps", type=int, default=8000, help="Number of warmup steps")
     parser.add_argument("--lpips_weight", type=float, default=0.05, help="Weight for LPIPS loss")
     parser.add_argument("--tone_mapper", type=str, choices=['none', 'agx', 'filmic', 'pbr_neutral'], default='agx', help="Tone mapper for LPIPS loss")
     parser.add_argument("--save_interval", type=int, default=5, help="Save checkpoint every N epochs")
-    parser.add_argument("--no_rotation_aug", action='store_true', help="Disable rotation augmentation")
+    parser.add_argument("--use_rotation_aug", action='store_true', default=True, help="Enable rotation augmentation")
+    parser.add_argument('-v', "--verbose", action='store_true', default=False, help="Print detailed model information")
     args = parser.parse_args()
     
     # Device setup
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
-    
+
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
     
+    # Preparing for summary logging
+    log_dir = os.path.join(args.output_dir, "logs")
+    writer = SummaryWriter(log_dir=log_dir)
+
     # Initialize model
     if args.model_id:
         print(f"Loading pretrained model from {args.model_id}")
@@ -332,22 +456,30 @@ def main():
         print("bf16 and fp16 will cause too large error in MPS, force using fp32 instead.")
     
     pipeline.to(device)
-    
+
+    if args.verbose:
+        print_debug_info(pipeline, device, args)
+
     # Create datasets
     train_dataset = RenderFormerTrainingDataset(
-        os.path.join(args.data_dir, 'train'), 
+        metadata_path=args.metadata_path,
+        split='train',
+        train_ratio=0.8,
         padding_length=args.padding_length
     )
+
     val_dataset = RenderFormerTrainingDataset(
-        os.path.join(args.data_dir, 'val'), 
+        metadata_path=args.metadata_path,
+        split='val',
+        train_ratio=0.8,
         padding_length=args.padding_length
     )
     
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.batch_size,
-        shuffle=True,
         num_workers=args.num_workers,
+        shuffle=True,
         pin_memory=True,
         drop_last=False
     )
@@ -355,12 +487,12 @@ def main():
     val_loader = DataLoader(
         val_dataset,
         batch_size=args.batch_size,
-        shuffle=False,
         num_workers=args.num_workers,
+        shuffle=False,
         pin_memory=True,
         drop_last=False
     )
-    
+
     # Loss function
     criterion = RenderFormerLoss(
         lpips_weight=args.lpips_weight,
@@ -371,20 +503,20 @@ def main():
     # Optimizer
     optimizer = optim.AdamW(
         pipeline.model.parameters(), 
-        lr=args.lr, 
+        lr=args.peak_lr, 
         weight_decay=0.01,
         betas=(0.9, 0.999)
     )
     
     # Learning rate scheduler: Linear warmup + Cosine decay
-    # Using PyTorch's built-in schedulers
+    # total steps = epochs * num_batches
     total_steps = args.epochs * len(train_loader)
     
     # Warmup scheduler: linear from 0 to peak lr
     warmup_scheduler = optim.lr_scheduler.LinearLR(
         optimizer,
-        start_factor=1e-10,  # Start from very small LR
-        end_factor=1e-4,      # End at peak LR (args.lr)
+        start_factor=0.01,
+        end_factor=1,
         total_iters=args.warmup_steps
     )
     
@@ -401,27 +533,18 @@ def main():
         schedulers=[warmup_scheduler, cosine_scheduler],
         milestones=[args.warmup_steps]
     )
-    
-    # Print training configuration
-    use_rotation_aug = not args.no_rotation_aug
-    print(f"\nTraining Configuration:")
-    print(f"  Batch size: {args.batch_size}")
-    print(f"  Total steps: {total_steps}")
-    print(f"  Warmup steps: {args.warmup_steps}")
-    print(f"  Peak learning rate: {args.lr}")
-    print(f"  Rotation augmentation: {'enabled' if use_rotation_aug else 'disabled'}")
-    print(f"  Precision: {args.precision}")
+
     
     # Training loop
     best_val_loss = float('inf')
-    
+    global_step = 0
     for epoch in range(args.epochs):
         print(f"\nEpoch {epoch + 1}/{args.epochs}")
         
         # Train
         train_loss, train_l1, train_lpips = train_epoch(
             pipeline, train_loader, optimizer, scheduler, criterion, device, 
-            args.resolution, args.precision, use_rotation_aug
+            args.resolution, args.precision, args.use_rotation_aug
         )
         
         # Validate
@@ -429,6 +552,20 @@ def main():
             pipeline, val_loader, criterion, device, args.resolution, args.precision
         )
         
+        lr = scheduler.get_last_lr()[0]
+
+        # --- TensorBoard logging (per epoch) ---
+        writer.add_scalar("Loss/train_total", train_loss, epoch)
+        writer.add_scalar("Loss/train_L1", train_l1, epoch)
+        writer.add_scalar("Loss/train_LPIPS", train_lpips, epoch)
+
+        writer.add_scalar("Loss/val_total", val_loss, epoch)
+        writer.add_scalar("Loss/val_L1", val_l1, epoch)
+        writer.add_scalar("Loss/val_LPIPS", val_lpips, epoch)
+
+        writer.add_scalar("LR/learning_rate", lr, epoch)
+        # --------------------------------------
+
         # Print statistics
         print(f"Train Loss: {train_loss:.4f} (L1: {train_l1:.4f}, LPIPS: {train_lpips:.4f})")
         print(f"Val Loss: {val_loss:.4f} (L1: {val_l1:.4f}, LPIPS: {val_lpips:.4f})")

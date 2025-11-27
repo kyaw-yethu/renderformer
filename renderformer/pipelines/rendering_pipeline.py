@@ -34,7 +34,8 @@ class RenderFormerRenderingPipeline:
         c2w,
         fov,
         resolution: int = 512,
-        torch_dtype: torch.dtype = torch.float16
+        torch_dtype: torch.dtype = torch.float16,
+        enable_grad: bool = False
     ):
         """
         Render images using the RenderFormer model
@@ -102,17 +103,33 @@ class RenderFormerRenderingPipeline:
         # Flatten triangles: [bs, num_tris, 3, 3] -> [bs, num_tris*9]
         # Flatten vn: [bs, num_tris, 3, 3] -> [bs, num_tris*9]
         # Flatten tri_vpos_view_tf: [bs, nv, num_tris, 3, 3] -> [bs, nv, num_tris*9]
-        with torch.no_grad(), torch.autocast(device_type=self.device.type, dtype=torch_dtype):
-            rendered_imgs = self.model(
-                triangles.reshape(bs, -1, 9),
-                texture,
-                mask,
-                vn.reshape(bs, -1, 9),
-                rays_o=rays_o,
-                rays_d=rays_d,
-                tri_vpos_view_tf=tris_for_view_tf.reshape(bs, nv, -1, 9),
-                tf32_view_tf=tf32_view_tf,
-            )
+        # Perform rendering with conditional gradient
+        if enable_grad:
+            # Training mode: enable gradients and autocast
+            with torch.autocast(device_type=self.device.type, dtype=torch_dtype):
+                rendered_imgs = self.model(
+                    triangles.reshape(bs, -1, 9),
+                    texture,
+                    mask,
+                    vn.reshape(bs, -1, 9),
+                    rays_o=rays_o,
+                    rays_d=rays_d,
+                    tri_vpos_view_tf=tris_for_view_tf.reshape(bs, nv, -1, 9),
+                    tf32_view_tf=tf32_view_tf,
+                )
+        else:
+            # Inference mode: disable gradients
+            with torch.no_grad(), torch.autocast(device_type=self.device.type, dtype=torch_dtype):
+                rendered_imgs = self.model(
+                    triangles.reshape(bs, -1, 9),
+                    texture,
+                    mask,
+                    vn.reshape(bs, -1, 9),
+                    rays_o=rays_o,
+                    rays_d=rays_d,
+                    tri_vpos_view_tf=tris_for_view_tf.reshape(bs, nv, -1, 9),
+                    tf32_view_tf=tf32_view_tf,
+                )
 
         # Process output
         # rendered_imgs: [bs, nv, C, H, W] -> [bs, nv, H, W, C]

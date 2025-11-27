@@ -10,4 +10,7 @@ h5py
 natsort
 imageio[ffmpeg]
 simple-ocio
+bpy==4.0.0 
+bpy_helper==0.0.8 
+lpips
 git+https://github.com/iamNCJ/renderformer-liger-kernel.git
