@@ -168,7 +168,7 @@ class RenderFormer(nn.Module, PyTorchModelHubMixin):
         tri_vpos_list, valid_mask = self.process_tri_vpos_list(tri_vpos_list, valid_mask)
 
         return seq, valid_mask, tri_vpos_list
-
+        
     def forward(self, tri_vpos_list, texture_patch_list, valid_mask, vns, rays_o, rays_d, tri_vpos_view_tf, tf32_view_tf=False):
         """
         Forward pass of the transformer.
@@ -184,9 +184,15 @@ class RenderFormer(nn.Module, PyTorchModelHubMixin):
         tf32_view_tf: bool, whether to use tf32 for view transformer
         """
         seq, valid_mask_padded, tri_vpos_list = self.construct_seq(tri_vpos_list, texture_patch_list, valid_mask, vns)
-        seq = self.transformer(seq, src_key_padding_mask=valid_mask_padded, triangle_pos=tri_vpos_list)
 
-        print("view independent seq mean:", seq.mean().item(), "std:", seq.std().item(), "min:", seq.min().item(), "max:", seq.max().item())
+        # torch.cuda.synchronize()
+        # start = torch.cuda.Event(enable_timing=True)
+        # end = torch.cuda.Event(enable_timing=True)
+        # start.record()
+        seq = self.transformer(seq, src_key_padding_mask=valid_mask_padded, triangle_pos=tri_vpos_list)
+        # end.record()
+        # torch.cuda.synchronize()
+        # print(f"View independent transformer time: {start.elapsed_time(end)/1000:.4f} seconds")
        
         batch_size, num_views = rays_o.size(0), rays_o.size(1)
         seq = seq.repeat_interleave(num_views, dim=0)
@@ -196,6 +202,8 @@ class RenderFormer(nn.Module, PyTorchModelHubMixin):
         valid_mask = valid_mask.repeat_interleave(num_views, dim=0)
         valid_mask_padded = valid_mask_padded.repeat_interleave(num_views, dim=0)
         pos_seq, _ = self.process_tri_vpos_list(tri_vpos_view_tf, valid_mask)
+
+        # start.record()
         res = self.view_transformer(
             rays_o,
             rays_d,
@@ -204,6 +212,8 @@ class RenderFormer(nn.Module, PyTorchModelHubMixin):
             valid_mask_padded,
             tf32_mode=tf32_view_tf
         )
-        print("view transformer output mean:", res.mean().item(), "std:", res.std().item(), "min:", res.min().item(), "max:", res.max().item())
+        # end.record()
+        # torch.cuda.synchronize()
+        # print(f"View dependent transformer time: {start.elapsed_time(end)/1000:.4f} seconds")
         res = res.view(batch_size, num_views, *res.size()[1:])  # [batch_size * num_views, ...] -> [batch_size, num_views, ...]
         return res

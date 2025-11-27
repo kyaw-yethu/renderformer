@@ -1,5 +1,7 @@
 import torch
+import os 
 
+from renderformer.models.config import RenderFormerConfig
 from renderformer.models.renderformer import RenderFormer
 from renderformer.utils.ray_generator import RayGenerator
 from renderformer.utils.transform import trans_to_cam_coord
@@ -12,9 +14,32 @@ class RenderFormerRenderingPipeline:
         self.ray_generator = RayGenerator().to(model.device)
 
     @classmethod
-    def from_pretrained(cls, model_id: str):
-        model = RenderFormer.from_pretrained(model_id)
-        model.eval()
+    def from_pretrained(cls, model_id: str, map_location=None):
+        """
+        Load either a HF Hub model id or a local .pt checkpoint.
+        If checkpoint contains:
+          - 'model_state_dict': use it
+          - 'config': dict to build RenderFormerConfig
+        Otherwise fall back to default config.
+        """
+        if os.path.isfile(model_id) and model_id.endswith(".pt"):
+            ckpt = torch.load(model_id, map_location=map_location)
+            state_dict = ckpt['model_state_dict']
+            model = RenderFormer(RenderFormerConfig())
+
+            missing, unexpected = model.load_state_dict(state_dict, strict=True)
+
+            if missing:
+                print(f"[from_pretrained] Missing keys: {missing}")
+            if unexpected:
+                print(f"[from_pretrained] Unexpected keys: {unexpected}")
+            model.eval()
+            print(f"Loaded local checkpoint: {model_id}")
+        else:
+            # HF Hub or other identifier
+            model = RenderFormer.from_pretrained(model_id)
+            model.eval()
+            print(f"Loaded hub model: {model_id}")
         return cls(model)
 
     @property
@@ -103,7 +128,12 @@ class RenderFormerRenderingPipeline:
         # Flatten triangles: [bs, num_tris, 3, 3] -> [bs, num_tris*9]
         # Flatten vn: [bs, num_tris, 3, 3] -> [bs, num_tris*9]
         # Flatten tri_vpos_view_tf: [bs, nv, num_tris, 3, 3] -> [bs, nv, num_tris*9]
-        # Perform rendering with conditional gradient
+
+        # torch.cuda.synchronize()
+        # start_total = torch.cuda.Event(enable_timing=True)
+        # end_total = torch.cuda.Event(enable_timing=True)
+        # start_total.record()
+
         if enable_grad:
             # Training mode: enable gradients and autocast
             with torch.autocast(device_type=self.device.type, dtype=torch_dtype):
@@ -130,7 +160,10 @@ class RenderFormerRenderingPipeline:
                     tri_vpos_view_tf=tris_for_view_tf.reshape(bs, nv, -1, 9),
                     tf32_view_tf=tf32_view_tf,
                 )
-
+        # end_total.record()
+        # torch.cuda.synchronize()
+        # print(f"Total rendering time: {start_total.elapsed_time(end_total)/1000:.4f} seconds")
+        
         # Process output
         # rendered_imgs: [bs, nv, C, H, W] -> [bs, nv, H, W, C]
         rendered_imgs = rendered_imgs.permute(0, 1, 3, 4, 2)

@@ -167,7 +167,7 @@ class MultiHeadAttention(nn.Module):
             # q, k, v are already in this format from earlier reshape
             attn_output = self.fast_attention(q, k, v)  # (B, heads, src_len, head_dim)
             attn_output = attn_output.transpose(1, 2).contiguous().view(bs, src_len, -1)
-            print("[Fast-Self-Attention] shape of attn_output:", attn_output.shape)
+            # print("[Performer-Self-Attention] shape of attn_output:", attn_output.shape)
         
         elif ATTN == 'sdpa' or force_sdpa:
             # create attention mask
@@ -188,7 +188,7 @@ class MultiHeadAttention(nn.Module):
                 value=v,
                 attn_mask=attn_mask,
             ).transpose(1, 2).contiguous().view(bs, src_len, -1)
-            print("[SDPA] shape of attn_output:", attn_output.shape)
+            # print("[SDPA] shape of attn_output:", attn_output.shape)
         elif ATTN == 'flash_attn':
             # self-attn
             if self.is_self_attn:
@@ -208,7 +208,7 @@ class MultiHeadAttention(nn.Module):
                         v.transpose(1, 2),
                     ], dim=2)
                     attn_output = flash_attn_qkvpacked_func(qkv).contiguous().view(bs, src_len, -1)
-                print("[Flash-Self-Attention] shape of attn_output:", attn_output.shape)
+                # print("[Flash-Self-Attention] shape of attn_output:", attn_output.shape)
 
             # cross-attn
             else:
@@ -228,7 +228,7 @@ class MultiHeadAttention(nn.Module):
                 attn_output = rearrange(
                     out_unpad, "(b s) h d -> b s h d", b=bs
                 ).contiguous().view(bs, src_len, -1)
-                print("[Flash-Cross-Attention] shape of attn_output:", attn_output.shape)
+                # print("[Flash-Cross-Attention] shape of attn_output:", attn_output.shape)
 
         else:
             raise ValueError("Unsupported attention type. Choose from 'flash_attn' and 'sdpa'.")

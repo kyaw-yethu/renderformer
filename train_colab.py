@@ -191,7 +191,7 @@ def train_epoch(pipeline, dataloader, optimizer, scheduler, criterion, device, r
     total_l1 = 0
     total_lpips = 0
     batch_count = 0
-
+    
     pbar = tqdm(dataloader, desc='Training')
     for batch in pbar:
         triangles = batch['triangles'].to(device)
@@ -203,8 +203,6 @@ def train_epoch(pipeline, dataloader, optimizer, scheduler, criterion, device, r
         gt_images = batch['gt_images'].to(device)
         scene_name = batch['scene_name']
 
-        # first_param = next(p for p in pipeline.model.parameters() if p.requires_grad)
-        # print("Initial param norm:", first_param.norm().item())
         # print("Triangles shape:", triangles.shape)
         # print("Texture shape:", texture.shape)
         # print("Mask shape:", mask.shape)
@@ -214,14 +212,14 @@ def train_epoch(pipeline, dataloader, optimizer, scheduler, criterion, device, r
         # print("GT images shape:", gt_images.shape)
 
         # Visualize some ground truth images for debugging
-        if epoch % 5 == 0 and batch_count % 100 == 0:
+        if batch_count % 100 == 0:
             for i in range(gt_images.shape[0]):
                 if i > 10:
                     break
                 img = gt_images[i, 0].cpu().numpy()
                 img = np.clip(img, 0, 1)
                 plt.imshow(img)
-                plt.savefig(f"debug/gt_epoch_{epoch}_batch_{batch_count}_sample_{i}.png")
+                plt.savefig(f"/content/drive/MyDrive/CS580_Project/renderformer/debug/gt_epoch_{epoch}_batch_{batch_count}_sample_{i}.png")
                 plt.close()
 
         # Apply random rotation augmentation
@@ -245,28 +243,20 @@ def train_epoch(pipeline, dataloader, optimizer, scheduler, criterion, device, r
         # print("Pred images shape:", pred_images.shape)
 
         # visualize all predicted images in the first batch for debugging
-        # if epoch % 5 == 0 and batch_count % 100 == 0:
-        #     for i in range(gt_images.shape[0]):
-        #         if i > 10:
-        #             break
-        #         img = pred_images[i, 0].detach().cpu().float().numpy()
-        #         img = np.clip(img, 0, 1)
-        #         plt.imshow(img)
-        #         plt.savefig(f"debug/pred_epoch_{epoch}_batch_{batch_count}_sample_{i}.png")
-        #         plt.close()
+        if batch_count % 100 == 0:
+            for i in range(gt_images.shape[0]):
+                if i > 10:
+                    break
+                img = pred_images[i, 0].detach().cpu().float().numpy()
+                img = np.clip(img, 0, 1)
+                plt.imshow(img)
+                plt.savefig(f"/content/drive/MyDrive/CS580_Project/renderformer/debug/pred_epoch_{epoch}_batch_{batch_count}_sample_{i}.png")
+                plt.close()
 
         # pred_images: [B, N_views, H, W, 3], gt_images: [B, N_views, H, W, 3]
         loss, l1_loss, lpips_loss = criterion(pred_images, gt_images)
 
         loss.backward()
-
-        # total_grad = 0.0
-        # for n, p in pipeline.model.named_parameters():
-        #     if p.requires_grad and p.grad is not None:
-        #         print(f"p.grad {p.grad}")
-        #         total_grad += p.grad.abs().sum().item()
-        # print("Total grad sum:", total_grad)
-
         optimizer.step()
         
         # Step scheduler per batch (not per epoch!)
@@ -282,8 +272,6 @@ def train_epoch(pipeline, dataloader, optimizer, scheduler, criterion, device, r
             'lpips': f'{lpips_loss.item():.4f}',
             'lr': f'{scheduler.get_last_lr()[0]:.6f}'
         })
-        # print("Final param norm:", first_param.norm().item())
-
         batch_count += 1
     
     avg_loss = total_loss / len(dataloader)
@@ -425,16 +413,16 @@ def main():
     # microsoft/renderformer-v1-base
     parser = argparse.ArgumentParser(description="Train RenderFormer model")
     parser.add_argument("--metadata_path", type=str, required=True, help="Path to Metadata JSON file")
-    parser.add_argument("--output_dir", type=str, default="checkpoints", help="Output directory for checkpoints")
+    parser.add_argument("--output_dir", type=str, default="/content/drive/MyDrive/CS580_Project/renderformer/checkpoints", help="Output directory for checkpoints")
     parser.add_argument("--model_id", type=str, default=None, help="Pretrained model ID (optional)")
     parser.add_argument("--precision", type=str, choices=['bf16', 'fp16', 'fp32'], default='fp16', help="Precision for inference")
     parser.add_argument("--resolution", type=int, default=512, help="Training resolution")
-    parser.add_argument("--batch_size", type=int, default=1, help="Batch size per GPU")
+    parser.add_argument("--batch_size", type=int, default=4, help="Batch size per GPU")
     parser.add_argument("--padding_length", type=int, default=4096, help="Padding length for triangles (optional)")
     parser.add_argument("--num_workers", type=int, default=4, help="Number of data loading workers")
     parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
-    parser.add_argument("--peak_lr", type=float, default=1e-4, help="Peak learning rate")
-    parser.add_argument("--warmup_steps", type=int, default=8000, help="Number of warmup steps")
+    parser.add_argument("--peak_lr", type=float, default=3e-5, help="Peak learning rate")
+    parser.add_argument("--warmup_steps", type=int, default=1000, help="Number of warmup steps")
     parser.add_argument("--lpips_weight", type=float, default=0.05, help="Weight for LPIPS loss")
     parser.add_argument("--tone_mapper", type=str, choices=['none', 'agx', 'filmic', 'pbr_neutral'], default='agx', help="Tone mapper for LPIPS loss")
     parser.add_argument("--save_interval", type=int, default=5, help="Save checkpoint every N epochs")
@@ -521,7 +509,7 @@ def main():
     optimizer = optim.AdamW(
         pipeline.model.parameters(), 
         lr=args.peak_lr, 
-        weight_decay=0.01,
+        weight_decay=0.001,
         betas=(0.9, 0.999)
     )
     

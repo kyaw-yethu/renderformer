@@ -25,7 +25,6 @@ def get_horizontal_range_for_template(template_id: int) -> Tuple[float, float]:
 def sample_camera_position(
     scene_center: Tuple[float, float, float] = (0.0, 0.0, 0.0),
     distance_range: Tuple[float, float] = (1.5, 2.0),
-    scene_bounds: Tuple[float, float] = (-0.5, 0.5),
     elevation_range: Tuple[float, float] = (0.0, 1.5),
     template_id: int = 0,
     seed: Optional[int] = None
@@ -153,7 +152,6 @@ def sample_cameras(
         position = sample_camera_position(
             scene_center=scene_center,
             distance_range=distance_range,
-            scene_bounds=scene_bounds,
             template_id=template_id,
             seed=cam_seed
         )

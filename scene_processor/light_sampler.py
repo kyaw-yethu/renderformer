@@ -3,9 +3,11 @@ import numpy as np
 from typing import List, Optional, Tuple
 from .scene_config import ObjectConfig, TransformConfig, MaterialConfig
 
+    
 def sample_light_position(
     scene_center: Tuple[float, float, float] = (0.0, 0.0, 0.0),
     distance_range: Tuple[float, float] = (2.1, 2.7),
+    elevation_range: Tuple[float, float] = (1.2, 2.5),
     seed: Optional[int] = None
 ) -> Tuple[float, float, float]:
     """Sample light position.
@@ -24,12 +26,11 @@ def sample_light_position(
     distance = np.random.uniform(distance_range[0], distance_range[1])
     
     theta = np.random.uniform(0, 2 * np.pi)
-    phi = np.random.uniform(0, np.pi / 2)
-    
-    x = distance * np.sin(phi) * np.cos(theta)
-    y = distance * np.sin(phi) * np.sin(theta)
-    z = distance * np.cos(phi)
-    
+
+    x = distance * np.cos(theta)
+    y = distance * np.sin(theta)
+    z = np.random.uniform(elevation_range[0], elevation_range[1])
+
     position = np.array(scene_center) + np.array([x, y, z])
     
     return tuple(position)

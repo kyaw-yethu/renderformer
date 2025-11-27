@@ -109,6 +109,11 @@ We found a shader bug in the training data that we used in the submission. We re
 ```bash
 python3 train.py --metadata_path output/dataset_small/metadata.json
 ```
+
+## Downloading Objects
+```bash
+python3 scripts/download_obj_files.py --n 25 --out ~/datasets/objaverse_xl_100k --cache ~/.objaverse --save-format files --flat-dir ~/datasets/objaverse_xl_100k/flat
+```
 ## Image Rendering
 
 ### Scene Conversion

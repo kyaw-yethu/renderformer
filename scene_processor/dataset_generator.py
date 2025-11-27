@@ -136,7 +136,7 @@ def generate_training_dataset(
         output_dir=output_dir,
         resolution=resolution,
         spp=spp,
-        save_img=True,
+        save_img=False,
         dump_blend=False,
         skip_rendering=skip_rendering,
         gpu_memory_check=gpu_memory_check,
