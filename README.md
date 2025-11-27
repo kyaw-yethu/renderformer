@@ -105,6 +105,10 @@ We found a shader bug in the training data that we used in the submission. We re
 
 # Usage
 
+## Training
+```bash
+python3 train.py --metadata_path output/dataset_small/metadata.json
+```
 ## Image Rendering
 
 ### Scene Conversion
@@ -112,13 +116,16 @@ We found a shader bug in the training data that we used in the submission. We re
 We put example scene config JSON files at [`examples`](./examples). To render a scene, first convert a scene config JSON file into our HDF5 scene format:
 
 ```bash
-python3 scene_processor/convert_scene.py examples/cbox.json --output_h5_path tmp/cbox/cbox.h5
+# python3 scene_processor/convert_scene.py examples/cbox.json --output_h5_path tmp/cbox/cbox.h5
+python3 -m scene_processor.convert_scene examples/cbox.json --output_h5_path tmp/cbox/cbox.h5 
 ```
 
 ### Rendering a Single Image Using Inference Script
 
 ```bash
-python3 infer.py --h5_file tmp/cbox/cbox.h5 --output_dir output/cbox/
+python3 infer.py --h5_file tmp/cbox/cbox.h5 --output_dir output/cbox/ 
+python3 batch_infer.py --h5_folder tmp/batch_h5
+# python3 infer.py --h5_file tmp/cbox/cbox.h5 --output_dir output/cbox/ --model_id microsoft/renderformer-v1-base
 ```
 
 You should now see `output/cbox/cbox_view_0.exr` and `output/cbox/cbox_view_0.png` under your output folder. `.exr` is the HDR Linear output from RenderFormer, and `.png` is the LDR version of the rendered image. You can enable different tone mappers through `--tone_mapper` to achieve better visual results.
