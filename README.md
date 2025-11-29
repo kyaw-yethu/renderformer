@@ -308,6 +308,7 @@ We also provide fields in the scene config JSON file (`remesh` and `remesh_targe
 
 ```bash
 python3 scene_processor/remesh.py --input path/to/your/high_res_mesh.obj ----output remeshed_object.obj --target_face_num 1024
+# python3 scene_processor/remesh.py --input examples/objects/tree/tree.obj --output examples/objects/tree/complex-tree.obj --target_face_num 65536
 ```
 
 ### Rendering Reference with Blender
@@ -318,6 +319,7 @@ Example usage:
 
 ```bash
 python3 scene_processor/to_blend.py examples/cbox.json --output_dir tmp/cbox --dump_blend --save_img --spp 4096
+# python3 -m scene_processor.to_blend examples/tomdrinwoman.json --output_dir tmp/ --dump_blend --save_img --spp 4096
 ```
 
 For detailed usage, please check the script.

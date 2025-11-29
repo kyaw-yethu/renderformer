@@ -214,15 +214,12 @@ def train_epoch(pipeline, dataloader, optimizer, scheduler, criterion, device, r
         # print("GT images shape:", gt_images.shape)
 
         # Visualize some ground truth images for debugging
-        if epoch % 5 == 0 and batch_count % 100 == 0:
-            for i in range(gt_images.shape[0]):
-                if i > 10:
-                    break
-                img = gt_images[i, 0].cpu().numpy()
-                img = np.clip(img, 0, 1)
-                plt.imshow(img)
-                plt.savefig(f"debug/gt_epoch_{epoch}_batch_{batch_count}_sample_{i}.png")
-                plt.close()
+        for i in range(gt_images.shape[0]):
+            img = gt_images[i, 0].cpu().numpy()
+            img = np.clip(img, 0, 1)
+            plt.imshow(img)
+            plt.savefig(f"debug/gt_epoch_{epoch}_batch_{batch_count}_sample_{i}.png")
+            plt.close()
 
         # Apply random rotation augmentation
         if use_rotation_aug:
@@ -245,27 +242,17 @@ def train_epoch(pipeline, dataloader, optimizer, scheduler, criterion, device, r
         # print("Pred images shape:", pred_images.shape)
 
         # visualize all predicted images in the first batch for debugging
-        # if epoch % 5 == 0 and batch_count % 100 == 0:
-        #     for i in range(gt_images.shape[0]):
-        #         if i > 10:
-        #             break
-        #         img = pred_images[i, 0].detach().cpu().float().numpy()
-        #         img = np.clip(img, 0, 1)
-        #         plt.imshow(img)
-        #         plt.savefig(f"debug/pred_epoch_{epoch}_batch_{batch_count}_sample_{i}.png")
-        #         plt.close()
+        for i in range(pred_images.shape[0]):
+            img = pred_images[i, 0].detach().cpu().float().numpy()
+            img = np.clip(img, 0, 1)
+            plt.imshow(img)
+            plt.savefig(f"debug/pred_epoch_{epoch}_batch_{batch_count}_sample_{i}.png")
+            plt.close()
 
         # pred_images: [B, N_views, H, W, 3], gt_images: [B, N_views, H, W, 3]
         loss, l1_loss, lpips_loss = criterion(pred_images, gt_images)
 
         loss.backward()
-
-        # total_grad = 0.0
-        # for n, p in pipeline.model.named_parameters():
-        #     if p.requires_grad and p.grad is not None:
-        #         print(f"p.grad {p.grad}")
-        #         total_grad += p.grad.abs().sum().item()
-        # print("Total grad sum:", total_grad)
 
         optimizer.step()
         
